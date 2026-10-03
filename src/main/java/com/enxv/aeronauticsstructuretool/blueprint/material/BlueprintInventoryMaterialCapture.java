@@ -164,7 +164,36 @@ public final class BlueprintInventoryMaterialCapture {
         if (stack == null || stack.isEmpty()) {
             return;
         }
-        Tag serialized = stack.save(registries);
+
+        // Original item count
+        long originalCount = stack.getCount();
+
+        // Container for the result of serialization
+        Tag serialized;
+
+        // Only do the funny saving method if stack exceeds expectations
+        if(originalCount > 64) {
+            // Spoofed copy of the item
+            // Spoofing helps avoid mc enforcing <=99 item stack restriction
+            ItemStack serializableStack = stack.copyWithCount(1);
+
+            // Save spoofed
+            serialized = serializableStack.save(registries);
+
+            // Basic lowercase "count" should be enough but MaterialCountCodec::readStackCount
+            // has a similar if statement so i'm just keeping things consistent
+            if (serialized instanceof CompoundTag compound) {
+                if (compound.contains("count", Tag.TAG_ANY_NUMERIC)) {
+                    compound.putLong("count", originalCount);
+                } else if (compound.contains("Count", Tag.TAG_ANY_NUMERIC)) {
+                    compound.putLong("Count", originalCount);
+                }
+            }
+        } else {
+            // Otherwise, save as normal
+            serialized = stack.save(registries);
+        }
+
         Map<String, Long> serializedCounts = BlueprintMaterialSummary.captureItemCounts(serialized);
         if (!serializedCounts.isEmpty()) {
             mergeInto(counts, serializedCounts);
